@@ -1,33 +1,49 @@
 import { build } from "velite";
 import dotenv from 'dotenv';
+import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 
 dotenv.config();
 
 /** @type {import('next').NextConfig} */
 
 export default {
-  // othor next config here...
-  webpack: (config) => {
-    config.plugins.push(new VeliteWebpackPlugin());
+  // other next config here...
+  webpack: (config, { isServer, dev }) => {
+    if (!isServer && !dev) {
+      config.plugins.push(new MiniCssExtractPlugin({
+        filename: 'static/css/[name].[contenthash].css',
+        chunkFilename: 'static/css/[name].[contenthash].css',
+      }));
+    }
+    
+    // Ignore punycode warning more specifically
+    config.ignoreWarnings = [
+      { message: /Critical dependency: the request of a dependency is an expression/ },
+      { message: /The `punycode` module is deprecated/ },
+    ];
+    
+    // Optimize Velite plugin
+    config.plugins.push({
+      apply: (compiler) => {
+        compiler.hooks.beforeCompile.tapPromise("VelitePlugin", async () => {
+          if (!VelitePlugin.started) {
+            VelitePlugin.started = true;
+            await build({ watch: dev, clean: !dev });
+          }
+        });
+      }
+    });
+    
+    // Attempt to minimize Velite plugin warnings
+    config.module.rules.push({
+      test: /velite-.*\.js$/,
+      loader: 'ignore-loader'
+    });
+    
     return config;
   },
 };
 
-class VeliteWebpackPlugin {
+class VelitePlugin {
   static started = false;
-  constructor(/** @type {import('velite').Options} */ options = {}) {
-    this.options = options;
-  }
-  apply(/** @type {import('webpack').Compiler} */ compiler) {
-    // executed three times in nextjs !!!
-    // twice for the server (nodejs / edge runtime) and once for the client
-    compiler.hooks.beforeCompile.tapPromise("VeliteWebpackPlugin", async () => {
-      if (VeliteWebpackPlugin.started) return;
-      VeliteWebpackPlugin.started = true;
-      const dev = compiler.options.mode === "development";
-      this.options.watch = this.options.watch ?? dev;
-      this.options.clean = this.options.clean ?? !dev;
-      await build(this.options); // start velite
-    });
-  }
 }

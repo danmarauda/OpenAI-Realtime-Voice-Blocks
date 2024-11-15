@@ -35,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll">
+    <html lang="en" className={cn("scroll")}>
       <body
         className={cn(
           "min-h-dvh bg-background font-sans antialiased",
